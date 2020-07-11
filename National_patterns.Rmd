@@ -1,0 +1,504 @@
+---
+title: "National trends"
+output: html_notebook
+---
+
+This will be to get the National crime trends
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(gridExtra)
+library('dotwhisker')
+library(gam)
+library(FitAR)
+library(forecast)
+library(visdat)
+library(rgdal)
+library(tmap)
+library(grid)
+
+
+source('~/Desktop/phd material/covid19/forecast_function2_months.R')
+source('~/Desktop/crime_reports/get_seasonality_uk_data copy.R')
+source('~/Desktop/crime_reports/forecast_2_months_slow.R')
+
+```
+
+historic data is pre-covid data
+```{r}
+setwd("~/Desktop/phd material/covid19/police_data")
+load('historic_data.Rdata')
+
+
+date_files = list.files(recursive = TRUE)
+
+files_wanted = date_files[str_detect(date_files, "-street")]
+
+files_wanted_no_manchester = files_wanted[str_detect(files_wanted,"greater-manchester", negate = TRUE)]
+
+mar_2015_to_feb_2020 = list()
+counter = 1
+for(i in files_wanted_no_manchester ){
+  mar_2015_to_feb_2020[[counter]] = read.csv(file = i, stringsAsFactors = FALSE)
+  counter = counter +1
+}
+
+
+historic_data = bind_rows(mar_2015_to_feb_2020)
+
+
+save(historic_data, file = 'historic_data.Rdata')
+
+
+
+```
+get the post covid data - march
+```{r}
+
+setwd("~/Desktop/phd material/covid19/2020-03")
+March_files = list.files(recursive = TRUE)
+
+files_wanted_m = March_files[str_detect(March_files, "-street")]
+
+files_wanted_no_manchester_m = files_wanted_m[str_detect(files_wanted_m,"greater-manchester", negate = TRUE)]
+
+mar_2020 = list()
+counter = 1
+for(i in files_wanted_no_manchester_m ){
+  mar_2020[[counter]] = read.csv(file = i, stringsAsFactors = FALSE)
+  counter = counter +1
+}
+
+
+march_data_all = bind_rows(mar_2020)
+
+save(march_data_all, file = 'march_data_all.RData')
+```
+get the post covid data - april
+
+```{r}
+setwd("~/Desktop/phd material/covid19/2020-04")
+April_files = list.files(recursive = TRUE)
+
+files_wanted_a = April_files[str_detect(April_files, "-street")]
+
+files_wanted_no_manchester_a = files_wanted_a[str_detect(files_wanted_a,"greater-manchester", negate = TRUE)]
+
+apr_2020 = list()
+counter = 1
+for(i in files_wanted_no_manchester_a){
+  apr_2020[[counter]] = read.csv(file = i, stringsAsFactors = FALSE)
+  counter = counter +1
+}
+
+
+april_data_all = bind_rows(apr_2020)
+
+save(april_data_all, file = 'april_data_all.RData')
+
+```
+Get the pop data 
+```{r}
+pop_data  = read_excel('GMP_pop_ests.xlsx', sheet = 2)
+# spread data change over the 12 months
+# pop estimate is for june, need mar 15 onwards
+list_of_month_pops = list()
+counter = 1
+for( i in 5:10 ){
+  
+  x = data.frame(year = c(rep(pop_data$Year[i],6),rep(pop_data$Year[i+1],6)),
+                 month = c(6,7,8,9,10,11,12,1,2,3,4,5),
+                 pop = (seq(from = pop_data$`E_W_pop(GMP)`[i], to = pop_data$`E_W_pop(GMP)`[i+1], length.out = 13 )[1:12])/10000)
+  
+list_of_month_pops[[counter]] = x 
+counter = counter +1
+}
+
+pop_ests = bind_rows(list_of_month_pops)[10:72,]
+
+
+plot(pop_ests$pop)
+```
+
+
+
+
+crime type
+
+```{r}
+
+
+# filter each data set
+
+mar_count = nrow( march_data_all%>% filter(Crime.type %in% crime.list))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type %in% crime.list))
+
+
+automated_2_months(historic_data, crime.list,march = mar_count, april = apr_count, All = TRUE)
+
+
+```
+
+```{r}
+
+load("crime.list.Rdata")
+for( i in as.character(crime.list)){
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == i))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == i))
+
+
+forecast_function_2_months(historic_data, crime = i,march = mar_count, april = apr_count, title = i, detrend = TRUE)
+  
+  
+}
+
+```
+
+
+
+```{r}
+
+for( i in as.character(crime.list)){
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == i))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == i))
+
+
+forecast_function_2_months_slow(historic_data, crime = i,march = mar_count, april = apr_count, title = i, detrend = TRUE)
+  
+  
+}
+
+```
+
+
+
+```{r}
+crime = 'Bicycle theft'
+
+# filter each data set
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == crime))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == crime))
+
+
+forecast_function_2_months(historic_data, crime,march = mar_count, april = apr_count, print = TRUE, detrend = TRUE)
+```
+
+```{r}
+crime = 'Bicycle theft'
+
+# filter each data set
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == crime))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == crime))
+
+f = automated_2_months(historic_data, crime, march = mar_count, april = apr_count, graph = TRUE)
+
+
+```
+
+```{r}
+list_of_graphs = list()
+counter = 1
+for( i in as.character(crime.list)){
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == i))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == i))
+
+
+list_of_graphs[[counter]] =  automated_2_months(historic_data, i, march = mar_count, april = apr_count, graph = TRUE)
+  counter = counter +1
+  
+}
+
+```
+One big block
+```{r}
+ordered_list_of_graphs = list_of_graphs[c(1,2,3,4,5,6,7,9,8,10,11,12,14,13)]
+
+## remove y axis labels RHS
+plot_index = c(2,4,6,8,10,12,14)
+for(i in plot_index){
+ordered_list_of_graphs[[i]] = ordered_list_of_graphs[[i]] + list(ylab(''))
+}
+
+#remove x-axis labels
+
+plot_index = c(1:12)
+for(i in plot_index){
+  ordered_list_of_graphs[[i]] = ordered_list_of_graphs[[i]] +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+}
+
+do.call(grid.arrange, c(ordered_list_of_graphs[c(1,3,5,7,9,11,13)],ncol = 2))
+```
+do them in seperate blocks acquisitive and non
+```{r}
+
+acq_list_of_graphs = list_of_graphs[c(2,4,6,9,10,12,13)]
+non_acq_list_of_graphs = list_of_graphs[c(1,3,5,7,8,11,14)]
+## remove y axis labels RHS
+plot_index = c(1:7)
+for(i in plot_index){
+acq_list_of_graphs[[i]] = acq_list_of_graphs[[i]] + list(ylab(''))
+}
+
+#remove x-axis labels
+
+plot_index = c(1:5)
+for(i in plot_index){
+  acq_list_of_graphs[[i]] = acq_list_of_graphs[[i]] +
+      scale_x_discrete(breaks = c('Mar 18','Mar 20', 'Mar 19',
+                                'Jul 18','Jul 19','Jul 20',
+                                'Nov 18','Nov 19','Nov 20'))+
+    theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+}
+
+#### remove some ticks
+plot_index = c(6:7)
+for(i in plot_index){
+  acq_list_of_graphs[[i]] = acq_list_of_graphs[[i]]  + 
+    theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 7))+ 
+    scale_x_discrete(breaks = c('Mar 18','Mar 20', 'Mar 19',
+                                'Jul 18','Jul 19','Jul 20',
+                                'Nov 18','Nov 19','Nov 20'))+
+    theme(panel.grid.minor =  element_line(colour = "white",size=0.75))
+}
+  
+acq_text = grid.arrange(textGrob('National\nAcquisitive Crime Rates\nRelative To Expected Values', gp = gpar(fontsize = 16, fontface ='bold')),
+                        textGrob('(Rates are Crimes Per 10,000 Population)', gp = gpar(fontsize = 12), y = unit(0.8, "npc")))
+g = grid.arrange(acq_list_of_graphs[[1]],
+             acq_text,
+             acq_list_of_graphs[[2]],
+             acq_list_of_graphs[[3]],
+             acq_list_of_graphs[[4]],
+             acq_list_of_graphs[[5]],
+             acq_list_of_graphs[[6]],
+             acq_list_of_graphs[[7]], ncol = 2, heights = c(1,1,1,1.1))
+
+ggsave(g, file = 'acq_rates.png', width = 7, height = 9)
+
+
+#############
+
+## remove y axis labels RHS
+plot_index = c(1:7)
+for(i in plot_index){
+non_acq_list_of_graphs[[i]] = non_acq_list_of_graphs[[i]] + list(ylab(''))
+}
+
+#remove x-axis labels
+
+plot_index = c(1:5)
+for(i in plot_index){
+  non_acq_list_of_graphs[[i]] = non_acq_list_of_graphs[[i]] + 
+    scale_x_discrete(breaks = c('Mar 18','Mar 20', 'Mar 19',
+                                'Jul 18','Jul 19','Jul 20',
+                                'Nov 18','Nov 19','Nov 20'))+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+}
+
+#### remove some ticks
+plot_index = c(6:7)
+for(i in plot_index){
+  non_acq_list_of_graphs[[i]] = non_acq_list_of_graphs[[i]]  + 
+    theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust=0.5, size = 7))+ 
+    scale_x_discrete(breaks = c('Mar 18','Mar 20', 'Mar 19',
+                                'Jul 18','Jul 19','Jul 20',
+                                'Nov 18','Nov 19','Nov 20'))+
+    theme(panel.grid.minor =  element_line(colour = "white",size=0.75))
+}
+non_acq_text = grid.arrange(textGrob('National\nNon-acquisitive Crime Rates\nRelative To Expected Values', gp = gpar(fontsize = 16, fontface ='bold')),
+                        textGrob('(Rates are Crimes Per 10,000 Population)', gp = gpar(fontsize = 12), y = unit(0.8, "npc")))
+g = grid.arrange(non_acq_list_of_graphs[[1]],
+             non_acq_text,
+             non_acq_list_of_graphs[[2]],
+             non_acq_list_of_graphs[[3]],
+             non_acq_list_of_graphs[[4]],
+             non_acq_list_of_graphs[[5]],
+             non_acq_list_of_graphs[[6]],
+             non_acq_list_of_graphs[[7]], ncol = 2, heights = c(1,1,1,1.1))
+
+ggsave(g, file = 'non_acq_rates.png', width = 7, height = 9)
+
+```
+
+
+Bar plots
+```{r}
+results = list()
+counter = 1
+for( i in as.character(crime.list)){
+
+mar_count = nrow( march_data_all%>% filter(Crime.type == i))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type == i))
+
+  
+ results[[counter]] = automated_2_months(historic_data, i, march = mar_count, april = apr_count, graph = FALSE)
+  counter = counter +1
+}
+
+results_df = bind_rows(results) %>% filter(complete.cases(.))%>%
+  mutate(percent_change = 100*(actual-Forecast)/Forecast) %>%
+  mutate(upper_perc = 100*(actual - upper_CI)/upper_CI) %>%
+  mutate(lower_perc = 100*(actual - lower_CI)/lower_CI)
+
+nice_crime_names = c('Damage & Arson','Other Theft','ASB','Burglary','Public Order', 'Vehicle Crime', 'Violence & Sex Offences','Other Crime', 'Shoplifting','Bike Theft', 'Drugs','Theft Person','Robbery','Weapon Possesion')
+
+data_to_plot = results_df %>% filter(Month == 'Mar 20') %>% mutate(percent_change = round(percent_change,1))
+data_to_plot$nice_crime = nice_crime_names
+data_to_plot = data_to_plot %>% arrange(desc(percent_change))
+crime_levels = data_to_plot$nice_crime
+data_to_plot$nice_crime = factor(data_to_plot$nice_crime, levels = crime_levels)
+
+
+ggplot(data =data_to_plot , aes(x = nice_crime, y = percent_change))+
+  geom_bar(stat = 'identity')+
+  coord_flip()+
+  ggtitle('Crime Rate Changes Relative To Expected Values - March 2020')+
+  xlab('')+
+  ylab('% Difference from Expected Rate')+
+  theme_gray()+
+  #ylim(c(-100,200))+
+  geom_errorbar(aes(ymin=lower_perc, ymax=upper_perc),
+                  width=.2, colour = 'blue', alpha = 0.5)+ 
+  geom_text(aes(label=percent_change, hjust = ifelse(percent_change > 0, -0.2,1)),
+                vjust = -0.5,
+             size = 3)
+ggsave(filename = 'march_bar_plot.png')
+
+data_to_plot = results_df %>% filter(Month == 'Apr 20')%>% mutate(percent_change = round(percent_change,1))
+data_to_plot$nice_crime = nice_crime_names
+data_to_plot = data_to_plot %>% arrange(desc(percent_change))
+crime_levels = data_to_plot$nice_crime
+data_to_plot$nice_crime = factor(data_to_plot$nice_crime, levels = crime_levels)
+
+
+ggplot(data =data_to_plot , aes(x = nice_crime, y = percent_change))+
+  geom_bar(stat = 'identity')+
+  coord_flip()+
+  ggtitle('Crime Rate Changes Relative To Expected Values - April 2020')+
+  xlab('')+
+  ylab('% Difference from Expected Rate')+
+  theme_gray()+
+  #ylim(c(-100,200))+
+  geom_errorbar(aes(ymin=lower_perc, ymax=upper_perc),
+                  width=.2, colour = 'blue', alpha = 0.5)+ 
+  geom_text(aes(label=percent_change, hjust = ifelse(percent_change > 0, -0.2,1)),
+                vjust = -0.5,
+             size = 3)
+
+ggsave(filename = 'april_bar_plot.png')
+```
+
+```{r}
+table_data = results_df%>% 
+  mutate(CI = paste0('(',round(lower_perc,1),',',round(upper_perc,1),')')) %>%
+  mutate(percent_change = round(percent_change,1)) %>%
+  select(crime,percent_change, CI, Month)
+
+write.csv(table_data, file = 'Nat_patterns_table_data.csv')
+
+```
+
+All crimes less ASB
+
+```{r}
+
+crime.list_no_ASB = crime.list[c(1:2,4:14)]
+
+mar_count = nrow( march_data_all%>% filter(Crime.type %in% crime.list_no_ASB))
+
+apr_count = nrow(april_data_all%>% filter(Crime.type%in% crime.list_no_ASB))
+
+g = automated_2_months(historic_data, crime.list_no_ASB, march = mar_count, april = apr_count, All = TRUE)
+
+g+scale_y_continuous( labels = scales::comma, limits = c(0,450000)) + ggtitle("National All Crime Counts")
+
+ggsave(filename = 'National_all_crime.png', width = 9, height = 7)
+```
+
+
+```{r}
+results_df1 = bind_rows(results)
+
+
+  
+y = c()
+for(i in nice_crime_names){
+  x = rep(i,26)
+  
+  y = append(y,x)
+  
+}
+
+results_df1$nice_crime_names  = y
+
+acq1 = c('Bike Theft','Theft Person','Robbery')
+acq2 = c('Other Theft','Burglary', 'Vehicle Crime', 'Shoplifting')
+non_acq1 = c('ASB','Violence & Sex Offences')
+non_acq2 = c( 'Other Crime',  'Drugs','Weapon Possesion')
+non_acq3 = c('Damage & Arson','Public Order')
+
+
+acq_results1 = results_df1 %>% filter(nice_crime_names %in% acq1)
+acq_results2 = results_df1 %>% filter(nice_crime_names %in% acq2)
+
+ggplot(data = acq_results1, aes(x = Month, y = actual, colour = crime, group = nice_crime_names))+
+  geom_path()+
+    geom_errorbar(aes(ymin=lower_CI, ymax=upper_CI, colour = crime), width=1, alpha = 1, position = 'dodge')+
+  theme(legend.position = 'bottom')+scale_color_brewer(palette="Dark2")+  theme(panel.background = element_blank(), panel.grid.major = element_line(colour = 'white'))+
+  theme(legend.position = 'bottom')+ theme(axis.line = element_line(colour = "black"))
+
+ggsave(filename = 'acq1.png')
+
+ggplot(data = acq_results2, aes(x = Month, y = actual, colour = crime, group = nice_crime_names))+
+  geom_path()+
+    geom_errorbar(aes(ymin=lower_CI, ymax=upper_CI, colour = crime), width=1, alpha = 1, position = 'dodge')+
+  theme(legend.position = 'bottom')+scale_color_brewer(palette="Dark2")+  theme(panel.background = element_blank(), panel.grid.major = element_line(colour = 'white'))+
+  theme(legend.position = 'bottom')+ theme(axis.line = element_line(colour = "black"))
+
+ggsave(filename = 'acq2.png')
+
+non_acq_results1 = results_df1 %>% filter(nice_crime_names %in% non_acq1)
+non_acq_results2 = results_df1 %>% filter(nice_crime_names %in% non_acq2)
+
+
+ggplot(data = non_acq_results1, aes(x = Month, y = actual, colour = crime, group = nice_crime_names))+
+  geom_path()+
+    geom_errorbar(aes(ymin=lower_CI, ymax=upper_CI, colour = crime), width=1, alpha = 1, position = 'dodge')+
+  theme(legend.position = 'bottom')+scale_color_brewer(palette="Dark2")+  theme(panel.background = element_blank(), panel.grid.major = element_line(colour = 'white'))+
+  theme(legend.position = 'bottom')+ theme(axis.line = element_line(colour = "black"))
+
+ggsave(filename = 'nonacq1.png')
+
+ggplot(data = non_acq_results2, aes(x = Month, y = actual, colour = crime, group = nice_crime_names))+
+  geom_path()+
+    geom_errorbar(aes(ymin=lower_CI, ymax=upper_CI, colour = crime), width=1, alpha = 1, position = 'dodge')+
+  theme(legend.position = 'bottom')+scale_color_brewer(palette="Dark2")+  theme(panel.background = element_blank(), panel.grid.major = element_line(colour = 'white'))+
+  theme(legend.position = 'bottom')+ theme(axis.line = element_line(colour = "black"))
+
+ggsave(filename = 'nonacq2.png')
+
+
+grouped_rates_graph(results_df1, acq1,'set1')
+```
+
+
